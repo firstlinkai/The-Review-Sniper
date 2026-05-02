@@ -1,0 +1,990 @@
+{
+  "name": "RRE-AUTO-01 – The Review Sniper",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours"
+            }
+          ]
+        }
+      },
+      "id": "97a9e100-ccb2-4d0c-b34b-23ade940fea9",
+      "name": "Schedule Trigger (Every 60 min)",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -448,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://mybusiness.googleapis.com/v4/accounts/{{$vars.GOOGLE_ACCOUNT_ID}}/locations/{{$vars.GOOGLE_LOCATION_ID}}/reviews",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "pageSize",
+              "value": "10"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {}
+          }
+        }
+      },
+      "id": "226e44ac-6df3-4ff8-bd63-2615bb645e61",
+      "name": "Fetch Google Reviews",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -208,
+        -16
+      ],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "hUoK4nVmL27ntd5o",
+          "name": "Google OAuth2 API - Generic"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "=https://graph.facebook.com/v19.0/{{$vars.FB_PAGE_ID}}/ratings",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_token",
+              "value": "={{$vars.FB_PAGE_ACCESS_TOKEN}}"
+            },
+            {
+              "name": "fields",
+              "value": "reviewer,rating,review_text,created_time,open_graph_story"
+            },
+            {
+              "name": "limit",
+              "value": "10"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "e4cc9502-65c8-4239-911f-3f4d34b78919",
+      "name": "Fetch Facebook Reviews",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        -208,
+        224
+      ],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "HJvkWfgeaAJ5ZEsp",
+          "name": "Runway"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Normalise Google reviews into a flat array\nconst reviews = $input.item.json.reviews || [];\n\nreturn reviews.map(r => ({\n  json: {\n    platform: 'Google',\n    reviewId: r.reviewId,\n    reviewerName: r.reviewer?.displayName || 'A Guest',\n    starRating: r.starRating, // ONE TWO THREE FOUR FIVE\n    starRatingNumeric: { 'ONE':1,'TWO':2,'THREE':3,'FOUR':4,'FIVE':5 }[r.starRating] || 0,\n    reviewText: r.comment || '(No written review)',\n    createTime: r.createTime,\n    reviewUrl: `https://search.google.com/local/reviews?placeid=${$vars.GOOGLE_PLACE_ID}`\n  }\n}));"
+      },
+      "id": "42096cd4-44a6-45b8-851c-6ebb98484aa5",
+      "name": "Normalise Google Reviews",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        32,
+        -16
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Normalise Facebook reviews into a flat array\nconst reviews = $input.item.json.data || [];\n\nreturn reviews.map(r => ({\n  json: {\n    platform: 'Facebook',\n    reviewId: r.open_graph_story?.id || r.created_time,\n    reviewerName: r.reviewer?.name || 'A Guest',\n    starRating: `${r.rating} STARS`,\n    starRatingNumeric: r.rating || 0,\n    reviewText: r.review_text || '(No written review)',\n    createTime: r.created_time,\n    reviewUrl: `https://www.facebook.com/${$vars.FB_PAGE_ID}/reviews/`\n  }\n}));"
+      },
+      "id": "55512270-e9de-4ef9-9e13-339dc4cc110d",
+      "name": "Normalise Facebook Reviews",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        32,
+        224
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "combineBySql",
+        "query": "SELECT * FROM t1 UNION ALL SELECT * FROM t2"
+      },
+      "id": "6952a981-cba6-4f1d-9428-06b9820c5e6a",
+      "name": "Merge All Reviews",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [
+        272,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1HUnPVu_mL_YS9aGU0Drrs8y3YKFwaSPS0f2IHlfCYrQ",
+          "mode": "list",
+          "cachedResultName": "Untitled spreadsheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1HUnPVu_mL_YS9aGU0Drrs8y3YKFwaSPS0f2IHlfCYrQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1HUnPVu_mL_YS9aGU0Drrs8y3YKFwaSPS0f2IHlfCYrQ/edit#gid=0"
+        },
+        "options": {}
+      },
+      "id": "eeb5f297-1353-43f9-9140-d263d2ceab51",
+      "name": "Check If Already Processed",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        512,
+        112
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ne5lFAYcDs8mggLN",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": false,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "filter-unprocessed",
+              "leftValue": "={{$json.reviewId}}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "39fc9d7a-d279-4296-8bcd-2d8bc7306866",
+      "name": "Filter: New Reviews Only",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [
+        752,
+        112
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "gpt-4.1-mini",
+          "mode": "list",
+          "cachedResultName": "GPT-4.1-MINI"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "You are a professional Resort Manager for Hacienda Verde Eco-Resort — a boutique, eco-conscious paradise. Your job is to write warm, genuine, brand-consistent replies to guest reviews.\n\nBRAND VOICE:\n- Warm, personal, and grateful\n- Eco-conscious and nature-inspired language\n- Never defensive, always empathetic\n- Address the reviewer by first name\n\nREPUTATION SHIELD PROTOCOL (for reviews < 3 stars):\n1. Acknowledge their specific concern sincerely\n2. Offer a genuine apology for falling short\n3. Move the conversation to a private channel: 'We'd love to make this right — please reach us directly at guestcare@haciendaverde.com'\n4. NEVER argue or make excuses\n\nFORMAT: Reply must be 2-3 sentences only. Do NOT add any prefix like 'Draft:' or 'Reply:'.",
+              "role": "system"
+            },
+            {
+              "content": "=Write a reply to this {{$json.platform}} review.\n\nReviewer: {{$json.reviewerName}}\nStar Rating: {{$json.starRatingNumeric}} out of 5\nReview: \"{{$json.reviewText}}\"\n\nRemember: If rating < 3, apply the Reputation Shield Protocol."
+            }
+          ]
+        },
+        "options": {
+          "maxTokens": 300,
+          "temperature": 0.7
+        }
+      },
+      "id": "c24d034d-421d-4433-a631-7dbcbec80966",
+      "name": "AI Draft Reply (GPT-4o)",
+      "type": "@n8n/n8n-nodes-langchain.openAi",
+      "typeVersion": 1.5,
+      "position": [
+        992,
+        112
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "P4NESClX0dBthYz4",
+          "name": "OpenAi account dgtlbase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{$vars.TELEGRAM_OWNER_CHAT_ID}}",
+        "text": "=🏨 *New {{$json.platform}} Review — {{$json.starRatingNumeric}}⭐*\n\n👤 *Reviewer:* {{$json.reviewerName}}\n📝 *Review:* _\"{{$json.reviewText}}\"_\n\n---\n🤖 *AI Draft Reply:*\n{{$json.message.content[0].text}}\n\n---\n⚠️ *Action Required — Reply within 60 min for best SEO impact.*",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "5a8b90d0-fb92-4f9e-81b4-35398c1525d0",
+      "name": "Notify Owner via Telegram",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1232,
+        112
+      ],
+      "webhookId": "da1ee798-7ecd-412e-b4a0-ed13880e3beb",
+      "credentials": {
+        "telegramApi": {
+          "id": "Z32LbSVlUrEo0aIT",
+          "name": "Telegram account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "1yGOuVUJaErMC-uiPLusuZyPIM3RWhXspVbn_wcZ8G5k",
+          "mode": "list",
+          "cachedResultName": "Automation roadmap ",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1yGOuVUJaErMC-uiPLusuZyPIM3RWhXspVbn_wcZ8G5k/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 710179289,
+          "mode": "list",
+          "cachedResultName": "Credentials",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1yGOuVUJaErMC-uiPLusuZyPIM3RWhXspVbn_wcZ8G5k/edit#gid=710179289"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "Platform",
+              "displayName": "Platform",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "API Key",
+              "displayName": "API Key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "06f11cae-de7a-4181-9d6f-1f8f8d6a60eb",
+      "name": "Log to Google Sheets (Pending)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1472,
+        112
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ne5lFAYcDs8mggLN",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "updates": [
+          "callback_query"
+        ],
+        "additionalFields": {}
+      },
+      "id": "1b941954-6660-4106-bea1-1217cda464a4",
+      "name": "Telegram Callback Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -448,
+        512
+      ],
+      "webhookId": "telegram-callback-webhook"
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Parse the callback data from Telegram button press\n// Format: ACTION::reviewId::platform\nconst callbackData = $input.item.json.callback_query?.data || '';\nconst parts = callbackData.split('::');\n\nconst action = parts[0] || 'UNKNOWN';\nconst reviewId = parts[1] || '';\nconst platform = parts[2] || '';\nconst callbackQueryId = $input.item.json.callback_query?.id || '';\nconst chatId = $input.item.json.callback_query?.message?.chat?.id || '';\nconst messageId = $input.item.json.callback_query?.message?.message_id || '';\n\n// Extract the AI draft from the original message text\nconst messageText = $input.item.json.callback_query?.message?.text || '';\nconst draftMatch = messageText.match(/AI Draft Reply:[\\s\\S]*?\\n([\\s\\S]*?)\\n---/);\nconst aiDraft = draftMatch ? draftMatch[1].trim() : '';\n\nreturn [{\n  json: {\n    action,\n    reviewId,\n    platform,\n    callbackQueryId,\n    chatId,\n    messageId,\n    aiDraft\n  }\n}];"
+      },
+      "id": "67007129-59e9-4de5-bbf1-7501c75216e4",
+      "name": "Parse Telegram Callback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -208,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.action}}",
+                    "rightValue": "APPROVE",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Approve"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.action}}",
+                    "rightValue": "EDIT",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Edit"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": false,
+                  "leftValue": "",
+                  "typeValidation": "strict",
+                  "version": 1
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{$json.action}}",
+                    "rightValue": "SKIP",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Skip"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "77b90c83-72d5-4979-89af-5a2c31687d6e",
+      "name": "Route: Approve / Edit / Skip",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [
+        32,
+        512
+      ]
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "11Hl8ZaeQ-B3OhqGJgHIpJPeAhsxMX73Vw9giB0PWcuE",
+          "mode": "list",
+          "cachedResultName": "Google Ad to Slides",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/11Hl8ZaeQ-B3OhqGJgHIpJPeAhsxMX73Vw9giB0PWcuE/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1308087136,
+          "mode": "list",
+          "cachedResultName": "Sheet9",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/11Hl8ZaeQ-B3OhqGJgHIpJPeAhsxMX73Vw9giB0PWcuE/edit#gid=1308087136"
+        },
+        "options": {}
+      },
+      "id": "c733a395-bc93-4148-8d53-1af370f0647d",
+      "name": "Get Review Data from Sheet",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        272,
+        416
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ne5lFAYcDs8mggLN",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "platform-check-google",
+              "leftValue": "={{$json.platform}}",
+              "rightValue": "Google",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "4a7383ce-041a-41e3-abdf-7e2ccc9ed21f",
+      "name": "Platform: Google or Facebook?",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [
+        512,
+        416
+      ]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://mybusiness.googleapis.com/v4/{{$json.reviewId}}/reply",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "oAuth2Api",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"comment\": \"{{$json.aiDraft}}\"\n}",
+        "options": {}
+      },
+      "id": "feca1872-30cd-416a-96cd-a1e4446e68f4",
+      "name": "Post Reply to Google",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        752,
+        304
+      ],
+      "credentials": {
+        "oAuth2Api": {
+          "id": "hUoK4nVmL27ntd5o",
+          "name": "Google OAuth2 API - Generic"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://graph.facebook.com/v19.0/{{$json.reviewId}}/comments",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"message\": \"{{$json.aiDraft}}\",\n  \"access_token\": \"{{$vars.FB_PAGE_ACCESS_TOKEN}}\"\n}",
+        "options": {}
+      },
+      "id": "cd4f1107-ad4f-40ab-8f43-d5ce89604fb3",
+      "name": "Post Reply to Facebook",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        752,
+        528
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1HUnPVu_mL_YS9aGU0Drrs8y3YKFwaSPS0f2IHlfCYrQ",
+          "mode": "list",
+          "cachedResultName": "Untitled spreadsheet",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1HUnPVu_mL_YS9aGU0Drrs8y3YKFwaSPS0f2IHlfCYrQ/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1HUnPVu_mL_YS9aGU0Drrs8y3YKFwaSPS0f2IHlfCYrQ/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "row_number": 0
+          },
+          "matchingColumns": [
+            "row_number"
+          ],
+          "schema": [
+            {
+              "id": "row_number",
+              "displayName": "row_number",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "number",
+              "canBeUsedToMatch": true,
+              "readOnly": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "9c9cabc6-1090-40c2-8d01-705f627f23eb",
+      "name": "Update Ledger: REPLIED",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        992,
+        416
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ne5lFAYcDs8mggLN",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{$json.chatId}}",
+        "text": "=✅ *Reply Posted Successfully!*\n\n📍 Platform: {{$json.platform}}\n👤 Reviewer: {{$json.reviewerName}}\n💬 Reply: _\"{{$json.aiDraft}}\"_\n\n🎉 Your response rate stays at 100%!",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "24545834-29ed-4564-8bf6-0867f6a50bb1",
+      "name": "Confirm to Owner (Posted)",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1232,
+        416
+      ],
+      "webhookId": "320be475-8775-4a2a-a514-1d38d2804f43",
+      "credentials": {
+        "telegramApi": {
+          "id": "Z32LbSVlUrEo0aIT",
+          "name": "Telegram account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{$json.chatId}}",
+        "text": "=✏️ *Edit Mode — Review ID: {{$json.reviewId}}*\n\nCurrent AI Draft:\n_\"{{$json.aiDraft}}\"_\n\nPlease reply to this message with your custom reply text and I'll post it.",
+        "additionalFields": {
+          "parse_mode": "Markdown"
+        }
+      },
+      "id": "e57c24ef-1a67-4616-bd16-19c947ecaebc",
+      "name": "Ask for Edited Reply",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        272,
+        704
+      ],
+      "webhookId": "dd5eddc2-0ed8-4e5c-bdbd-4762a9229be8",
+      "credentials": {
+        "telegramApi": {
+          "id": "Z32LbSVlUrEo0aIT",
+          "name": "Telegram account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "11Hl8ZaeQ-B3OhqGJgHIpJPeAhsxMX73Vw9giB0PWcuE",
+          "mode": "list",
+          "cachedResultName": "Google Ad to Slides",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/11Hl8ZaeQ-B3OhqGJgHIpJPeAhsxMX73Vw9giB0PWcuE/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 1308087136,
+          "mode": "list",
+          "cachedResultName": "Sheet9",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/11Hl8ZaeQ-B3OhqGJgHIpJPeAhsxMX73Vw9giB0PWcuE/edit#gid=1308087136"
+        },
+        "options": {}
+      },
+      "id": "ddc0ef79-17dd-40d0-b8a0-50c1803cba50",
+      "name": "Update Ledger: SKIPPED",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        272,
+        896
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "ne5lFAYcDs8mggLN",
+          "name": "Google Sheets account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "answerCallbackQuery"
+      },
+      "id": "e9519c16-5f35-4f39-9d97-8bbbf4d43eed",
+      "name": "Acknowledge Telegram Button",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -208,
+        704
+      ],
+      "webhookId": "f9ab288b-2014-4643-b7ad-3bb8b01d9a24",
+      "credentials": {
+        "telegramApi": {
+          "id": "Z32LbSVlUrEo0aIT",
+          "name": "Telegram account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "content": "# The Review Sniper\n## Chain 1 — Review Poller (runs every 60 min)\n\n### 1- Schedule Trigger\n### 2- Fetch Google Reviews + Fetch Facebook Reviews\n### 3- Normalise Google/Facebook\n### 4- Merge All Reviews\n### 5- Check If Already Processed\n### 6- Filter: New Reviews Only\n### 7- AI Draft Reply (GPT-4o)\n### 8- Notify Owner via Telegram",
+        "height": 384,
+        "width": 560
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1072,
+        -48
+      ],
+      "typeVersion": 1,
+      "id": "278a0e95-c2ad-4faa-9060-69f2bac740ca",
+      "name": "Sticky Note"
+    },
+    {
+      "parameters": {
+        "content": "# The Review Sniper\n## Chain 2 — Owner Approval Handler\n\n### 1- Telegram Callback Trigger\n### 2- Parse Callback\n### 3- Route: APPROVE / EDIT / SKIP\n### 4- Get Review Data\n### 5- Platform Router\n### 6- Post Reply\n### 7- Update Ledger\n### 8- Confirm to Owner",
+        "height": 384,
+        "width": 560
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -1072,
+        464
+      ],
+      "typeVersion": 1,
+      "id": "f190f3ed-9e73-4440-8d5d-058cd0dd7165",
+      "name": "Sticky Note1"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger (Every 60 min)": {
+      "main": [
+        [
+          {
+            "node": "Fetch Google Reviews",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Fetch Facebook Reviews",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Google Reviews": {
+      "main": [
+        [
+          {
+            "node": "Normalise Google Reviews",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Facebook Reviews": {
+      "main": [
+        [
+          {
+            "node": "Normalise Facebook Reviews",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise Google Reviews": {
+      "main": [
+        [
+          {
+            "node": "Merge All Reviews",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalise Facebook Reviews": {
+      "main": [
+        [
+          {
+            "node": "Merge All Reviews",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge All Reviews": {
+      "main": [
+        [
+          {
+            "node": "Check If Already Processed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check If Already Processed": {
+      "main": [
+        [
+          {
+            "node": "Filter: New Reviews Only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter: New Reviews Only": {
+      "main": [
+        [
+          {
+            "node": "AI Draft Reply (GPT-4o)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Draft Reply (GPT-4o)": {
+      "main": [
+        [
+          {
+            "node": "Notify Owner via Telegram",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Notify Owner via Telegram": {
+      "main": [
+        [
+          {
+            "node": "Log to Google Sheets (Pending)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Callback Trigger": {
+      "main": [
+        [
+          {
+            "node": "Parse Telegram Callback",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Telegram Callback": {
+      "main": [
+        [
+          {
+            "node": "Acknowledge Telegram Button",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Acknowledge Telegram Button": {
+      "main": [
+        [
+          {
+            "node": "Route: Approve / Edit / Skip",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route: Approve / Edit / Skip": {
+      "main": [
+        [
+          {
+            "node": "Get Review Data from Sheet",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Ask for Edited Reply",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Update Ledger: SKIPPED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Review Data from Sheet": {
+      "main": [
+        [
+          {
+            "node": "Platform: Google or Facebook?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Platform: Google or Facebook?": {
+      "main": [
+        [
+          {
+            "node": "Post Reply to Google",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post Reply to Google": {
+      "main": [
+        [
+          {
+            "node": "Update Ledger: REPLIED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Post Reply to Facebook": {
+      "main": [
+        [
+          {
+            "node": "Update Ledger: REPLIED",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Ledger: REPLIED": {
+      "main": [
+        [
+          {
+            "node": "Confirm to Owner (Posted)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "8eee7b2b-2491-4ba6-8e99-fbf9ad3b2c6d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "563081422b97a9613202fc9e330444d764a4b838aee8c810ae24b64e312e87c7"
+  },
+  "id": "toSyPfjk26u4tupZ",
+  "tags": []
+}
